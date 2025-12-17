@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CODECO - P2</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+      #map {
+        flex: 1;
+        width: 100%;
+      }
+      .logo {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+      }
+      
+      .custom-marker {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+      
+      .marker-label {
+        position: absolute;
+        top: -22px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.75);
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: bold;
+        white-space: nowrap;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      }
+      
+      .marker-label.ego-label {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 3px 8px;
+        font-size: 11px;
+        border: 2px solid white;
+      }
+      
+      .cursor-arrow {
+        width: 0;
+        height: 0;
+        border-left: 10px solid transparent;
+        border-right: 10px solid transparent;
+        border-bottom: 24px solid currentColor;
+        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+        transform-origin: center bottom;
+      }
+      
+      .cursor-arrow.ego {
+        border-left: 14px solid transparent;
+        border-right: 14px solid transparent;
+        border-bottom: 32px solid currentColor;
+        filter: drop-shadow(0 3px 4px rgba(0,0,0,0.4));
+      }
+      
+      .ego-ring {
+        position: absolute;
+        width: 50px;
+        height: 50px;
+        border: 3px solid;
+        border-radius: 50%;
+        animation: pulse 2s ease-in-out infinite;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+      
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 0.6;
+          transform: translate(-50%, -50%) scale(1);
+        }
+        50% {
+          opacity: 0.2;
+          transform: translate(-50%, -50%) scale(1.3);
+        }
+      }
+      
+      .status-panel {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 15px rgba(0, 0, 0, 0.15);
+        min-width: 180px;
+      }
+      
+      .status-panel h3 {
+        margin: 0 0 10px 0;
+        font-size: 14px;
+        color: #333;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 8px;
+      }
+      
+      .status-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 5px 0;
+        font-size: 12px;
+      }
+      
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+        display: inline-block;
+      }
+      
+      .leaflet-tooltip {
+        background: rgba(255, 255, 255, 0.95);
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 3px 14px rgba(0,0,0,0.2);
+        padding: 10px 12px;
+      }
+      
+      .leaflet-tooltip-top:before {
+        border-top-color: rgba(255, 255, 255, 0.95);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="logo">
+      <img
+        src="i2cat_logo.png"
+        alt="Logo"
+        style="width: 250px; height: auto"
+      />
+    </div>
+    
+    <div class="status-panel">
+      <h3>📡 Active Nodes</h3>
+      <div id="node-count" class="status-item">
+        <span>Total nodes:</span>
+        <strong>0</strong>
+      </div>
+      <div id="ego-status" class="status-item">
+        <span>Ego node:</span>
+        <strong>—</strong>
+      </div>
+      <div id="last-update" class="status-item">
+        <span>Last update:</span>
+        <strong>—</strong>
+      </div>
+    </div>
+    
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      const map = L.map("map").setView([41.320, 2.012], 15);
+
+      // Add OpenStreetMap tiles with CartoDB Positron styling
+      L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+          subdomains: "abcd",
+          maxZoom: 19,
+        }
+      ).addTo(map);
+
+      // Layer group to hold markers
+      const markersLayer = L.layerGroup().addTo(map);
+
+      // Color palette for different nodes (distinct, vibrant colors)
+      const colorPalette = [
+        '#e74c3c', // Red
+        '#3498db', // Blue
+        '#2ecc71', // Green
+        '#f39c12', // Orange
+        '#9b59b6', // Purple
+        '#1abc9c', // Teal
+        '#e91e63', // Pink
+        '#00bcd4', // Cyan
+        '#ff5722', // Deep Orange
+        '#607d8b', // Blue Grey
+        '#8bc34a', // Light Green
+        '#ffc107', // Amber
+        '#673ab7', // Deep Purple
+        '#009688', // Teal variant
+        '#795548', // Brown
+      ];
+
+      // Map to store station_id -> color assignments
+      const stationColors = new Map();
+      let colorIndex = 0;
+
+      // Get a consistent color for a station ID
+      const getStationColor = (stationId) => {
+        if (!stationColors.has(stationId)) {
+          stationColors.set(stationId, colorPalette[colorIndex % colorPalette.length]);
+          colorIndex++;
+        }
+        return stationColors.get(stationId);
+      };
+
+      // Get station type label
+      const getStationTypeLabel = (stationType) => {
+        const types = {
+          0: 'Unknown',
+          1: 'Pedestrian',
+          2: 'Cyclist',
+          3: 'Moped',
+          4: 'Motorcycle',
+          5: 'Passenger Car',
+          6: 'Bus',
+          7: 'Light Truck',
+          8: 'Heavy Truck',
+          9: 'Trailer',
+          10: 'Special Vehicle',
+          11: 'Tram',
+          15: 'RSU'
+        };
+        return types[stationType] || `Type ${stationType}`;
+      };
+
+      // Get station type emoji
+      const getStationTypeEmoji = (stationType) => {
+        const emojis = {
+          0: '❓',
+          1: '🚶',
+          2: '🚴',
+          3: '🛵',
+          4: '🏍️',
+          5: '🚗',
+          6: '🚌',
+          7: '🚐',
+          8: '🚛',
+          9: '🚚',
+          10: '🚜',
+          11: '🚃',
+          15: '📡'
+        };
+        return emojis[stationType] || '📍';
+      };
+
+      // Format timestamp
+      const formatTimestamp = (tsMillis) => {
+        const date = new Date(tsMillis);
+        return date.toLocaleTimeString();
+      };
+
+      // Calculate age in seconds
+      const calculateAge = (tsMillis) => {
+        return ((Date.now() - tsMillis) / 1000).toFixed(1);
+      };
+
+      // Create a marker for a node
+      const createMarker = (data) => {
+        const color = getStationColor(data.station_id);
+        const isEgo = data.ego === true;
+        
+        // Normalize heading to 0-360 range
+        let adjustedHeading = data.heading % 360;
+        if (adjustedHeading < 0) adjustedHeading += 360;
+
+        const markerSize = isEgo ? 50 : 36;
+        const emoji = getStationTypeEmoji(data.station_type);
+        const typeLabel = getStationTypeLabel(data.station_type);
+        
+        // Create the marker HTML
+        const markerHtml = `
+          <div style="position: relative; width: ${markerSize}px; height: ${markerSize}px; display: flex; align-items: center; justify-content: center;">
+            ${isEgo ? `<div class="ego-ring" style="border-color: ${color};"></div>` : ''}
+            <div class="marker-label ${isEgo ? 'ego-label' : ''}" style="${!isEgo ? `border-left: 3px solid ${color};` : ''}">
+              ${isEgo ? '⭐ ' : ''}${data.station_id}
+            </div>
+            <div style="transform: rotate(${adjustedHeading}deg); color: ${color};">
+              <div class="cursor-arrow ${isEgo ? 'ego' : ''}"></div>
+            </div>
+          </div>
+        `;
+
+        const icon = L.divIcon({
+          html: markerHtml,
+          className: "custom-marker",
+          iconSize: [markerSize, markerSize],
+          iconAnchor: [markerSize / 2, markerSize / 2],
+        });
+
+        const marker = L.marker([data.latitude, data.longitude], { 
+          icon,
+          zIndexOffset: isEgo ? 1000 : 0 // Ego marker on top
+        });
+
+        // Add detailed tooltip
+        const ageSeconds = calculateAge(data.last_update_ts_millis);
+        marker.bindTooltip(`
+          <div style="min-width: 150px;">
+            <div style="display: flex; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #eee;">
+              <span style="font-size: 20px; margin-right: 8px;">${emoji}</span>
+              <div>
+                <strong style="font-size: 13px;">${typeLabel}</strong>
+                ${isEgo ? '<span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1px 6px; border-radius: 3px; font-size: 9px; margin-left: 5px;">EGO</span>' : ''}
+                <div style="font-size: 11px; color: #666;">ID: ${data.station_id}</div>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: #444;">
+              <div style="margin: 4px 0;"><strong>📍 Position:</strong> ${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}</div>
+              <div style="margin: 4px 0;"><strong>🧭 Heading:</strong> ${data.heading.toFixed(1)}°</div>
+              <div style="margin: 4px 0;"><strong>⚡ Speed:</strong> ${data.speed.toFixed(1)} m/s</div>
+              <div style="margin: 4px 0;"><strong>⏱️ Age:</strong> ${ageSeconds}s ago</div>
+            </div>
+          </div>
+        `, {
+          direction: "top",
+          offset: [0, isEgo ? -30 : -22],
+          opacity: 0.95
+        });
+
+        return marker;
+      };
+
+      // Track ego node for centering
+      let egoNode = null;
+      let initialCenterDone = false;
+
+      // Update the map with new positions
+      const updateMap = (positions) => {
+        markersLayer.clearLayers();
+        
+        // Find ego node
+        egoNode = positions.find(p => p.ego === true);
+        
+        positions.forEach((data) => {
+          const marker = createMarker(data);
+          markersLayer.addLayer(marker);
+        });
+
+        // Center on ego node if exists and first time or continuously follow
+        if (egoNode && !initialCenterDone) {
+          map.setView([egoNode.latitude, egoNode.longitude], 16, { animate: true });
+          initialCenterDone = true;
+        } else if (egoNode) {
+          // Smoothly pan to ego node position
+          map.panTo([egoNode.latitude, egoNode.longitude], { animate: true, duration: 0.5 });
+        }
+
+        // Update status panel
+        updateStatusPanel(positions);
+      };
+
+      // Update the status panel
+      const updateStatusPanel = (positions) => {
+        const nodeCountEl = document.querySelector('#node-count strong');
+        const egoStatusEl = document.querySelector('#ego-status strong');
+        const lastUpdateEl = document.querySelector('#last-update strong');
+        
+        nodeCountEl.textContent = positions.length;
+        
+        if (egoNode) {
+          egoStatusEl.innerHTML = `<span style="color: ${getStationColor(egoNode.station_id)};">●</span> ${egoNode.station_id}`;
+        } else {
+          egoStatusEl.textContent = '—';
+        }
+        
+        lastUpdateEl.textContent = new Date().toLocaleTimeString();
+      };
+
+      // Fetch positions from the backend
+      const fetchPositions = async () => {
+        try {
+          const response = await fetch("/positions");
+          if (!response.ok) {
+            throw new Error("Failed to fetch positions");
+          }
+          const positions = await response.json();
+          updateMap(positions);
+        } catch (error) {
+          console.error("Error fetching positions:", error);
+        }
+      };
+
+      // Periodically fetch positions (every 500ms for smooth updates)
+      setInterval(fetchPositions, 500);
+
+      // Initial fetch
+      fetchPositions();
+    </script>
+  </body>
+</html>
