@@ -28,13 +28,27 @@ pip install -r requirements.txt
 A **Python virtual environment** is recommended to avoid conflicts with other Python packages installed in the system.
 
 
-# Installation
+## Usage
 
-Library can be easily installed using the following command:
+The application can be started by running the following command:
 
 ```
-pip install -r requirements.txt
+python src/flexstack_ui.py
 ```
+
+By default, the application will start a web server on `http://localhost:5000`. You can access the web interface by opening a web browser and navigating to this URL. And it will start sending CAM messages through the `lo` interface.
+
+The behaviour of the application can be customized changing the following environment variables:
+
+| Environment Variable                     | Description                                                                                     |
+|------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `GPSD_HOST`                             | Hostname for the GPSD service (default: `localhost`).                                         |
+| `GPSD_PORT`                             | Port number for the GPSD service (default: `2947`).                                           |
+| `SEND_CAMS`                             | Flag to enable sending CAM messages (default: `True`).                                        |
+| `SEND_VAMS`                             | Flag to enable sending VAM messages (default: `False`).                                       |
+| `V2X_INTERFACE`                         | Network interface for V2X communication (default: `lo`).                                      |
+| `HTTP_SERVER_PORT`                      | Port number for the HTTP server (default: `5000`).                                            |
+| `HTTP_SERVER_ACCEPTED_ADDRESSES`       | Accepted addresses for the HTTP server (default: `0.0.0.0`).                                   |
 
 ## Developers
 

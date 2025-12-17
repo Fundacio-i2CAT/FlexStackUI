@@ -75,9 +75,11 @@ GPSD_PORT = int(os.getenv("GPSD_PORT", "2947"))
 POSITION_COORDINATES = [41.386931, 2.112104]
 MAC_ADDRESS = generate_random_mac_address()
 STATION_ID = random.randint(1, 2147483647)
-SEND_CAMS = True
-SEND_VAMS = False
-
+SEND_CAMS = os.getenv("SEND_CAMS", "True").lower() in ("true", "1", "yes")
+SEND_VAMS = os.getenv("SEND_VAMS", "False").lower() in ("true", "1", "yes")
+V2X_INTERFACE = os.getenv("V2X_INTERFACE", "lo")
+HTTP_SERVER_PORT = int(os.getenv("HTTP_SERVER_PORT", "5000"))
+HTTP_SERVER_ACCEPTED_ADDRESSES = os.getenv("HTTP_SERVER_ACCEPTED_ADDRESSES", "0.0.0.0")
 
 def main():
     # Instantiate a Location Service
@@ -87,7 +89,7 @@ def main():
     )
     
     perceived_nodes = PerceivedNodes(STATION_ID)
-    backend = Backend(perceived_nodes=perceived_nodes)
+    backend = Backend(perceived_nodes=perceived_nodes, port=HTTP_SERVER_PORT, host=HTTP_SERVER_ACCEPTED_ADDRESSES)
 
     # Instantiate a GN router
     mib = MIB(
@@ -221,7 +223,7 @@ def main():
     # Instantiate a Link Layer
     btp_router.freeze_callbacks()
     link_layer = RawLinkLayer(
-        "lo", MAC_ADDRESS, receive_callback=gn_router.gn_data_indicate
+        V2X_INTERFACE, MAC_ADDRESS, receive_callback=gn_router.gn_data_indicate
     )
 
     gn_router.link_layer = link_layer
