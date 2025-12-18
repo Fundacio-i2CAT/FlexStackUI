@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import os
 from flexstack.linklayer.raw_link_layer import RawLinkLayer

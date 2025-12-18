@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import threading
 from flask import Flask, jsonify, send_file

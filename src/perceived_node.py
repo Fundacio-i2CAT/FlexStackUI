@@ -1,3 +1,4 @@
+from __future__ import annotations
 import time
 import threading
 from flexstack.utils.time_service import TimeService
@@ -127,7 +128,6 @@ class PerceivedNodes:
                 cam = obj["dataObject"]
                 gen_delta_time = GenerationDeltaTime(
                     msec=cam["cam"]["generationDeltaTime"])
-                
                 self.update_node(
                     station_id=cam["header"]["stationId"],
                     last_update_ts_millis=int(gen_delta_time.as_timestamp_in_certain_point(int(TimeService.time() * 1000))),
